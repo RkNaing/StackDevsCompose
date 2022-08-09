@@ -1,0 +1,170 @@
+package com.rahulkumar.stackdevs.ui.screens.devs_list
+
+import android.content.Intent
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.items
+import com.rahulkumar.stackdevs.R
+import com.rahulkumar.stackdevs.data.models.Dev
+import com.rahulkumar.stackdevs.data.resource.ErrorEntity
+import com.rahulkumar.stackdevs.ui.components.ErrorView
+import com.rahulkumar.stackdevs.ui.components.SimpleLoadingView
+import com.rahulkumar.stackdevs.utils.android.getActivity
+import timber.log.Timber
+
+@Composable
+fun DevsListContent(modifier: Modifier = Modifier, devs: LazyPagingItems<Dev>) {
+
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+
+        when (val prepend = devs.loadState.prepend) {
+            is LoadState.Loading -> {
+                Timber.d("DevsListContent: Prepend Loading")
+                item(contentType = ITEM_LOAD_STATE) {
+                    SimpleLoadingView(
+                        Modifier.fillMaxWidth(),
+                        orientation = Orientation.Horizontal,
+                        messageRes = R.string.msg_loading_more_devs
+                    )
+                }
+            }
+            is LoadState.Error -> {
+                val prependError = prepend.error
+                val errorEntity = prependError as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
+                Timber.d("DevsListContent: Prepend Error : $prependError")
+                item(contentType = ITEM_LOAD_STATE) {
+                    RestErrorEntityView(
+                        modifier = Modifier.fillMaxWidth(),
+                        errorEntity = errorEntity,
+                        onRetry = { devs.retry() }
+                    )
+                }
+            }
+            else -> Unit
+        }
+
+        items(items = devs, key = { dev -> dev.accountId }) { dev ->
+            dev?.let {
+                ItemDeveloper(
+                    dev = dev,
+                    onClickProfileBtn = { profileLink ->
+                        profileLink?.toUri().let { profileUri ->
+                            context.getActivity()
+                                ?.startActivity(Intent(Intent.ACTION_VIEW, profileUri))
+                        }
+                    },
+                    onClickPortfolioBtn = { portfolioLink ->
+                        portfolioLink?.toUri().let { portfolioUri ->
+                            context.getActivity()
+                                ?.startActivity(Intent(Intent.ACTION_VIEW, portfolioUri))
+                        }
+                    })
+            }
+        }
+
+        with(devs.loadState) {
+            when {
+                refresh is LoadState.Loading -> {
+                    Timber.d("DevsListContent: Refresh Loading")
+                    item(contentType = ITEM_LOAD_STATE) {
+                        SimpleLoadingView(
+                            modifier = Modifier.fillParentMaxSize(),
+                            orientation = Orientation.Vertical
+                        )
+                    }
+                }
+                refresh is LoadState.Error -> {
+                    val refreshError = refresh as LoadState.Error
+                    Timber.d("DevsListContent: Refresh Error : $refreshError")
+                    val errorEntity =
+                        refreshError.error as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
+                    item(contentType = ITEM_LOAD_STATE) {
+                        RestErrorEntityView(
+                            modifier = Modifier.fillParentMaxSize(),
+                            errorEntity = errorEntity,
+                            onRetry = { devs.retry() }
+                        )
+                    }
+                }
+                append is LoadState.Loading -> {
+                    Timber.d("DevsListContent: Append Loading")
+                    item(contentType = ITEM_LOAD_STATE) {
+                        SimpleLoadingView(
+                            Modifier.fillMaxWidth(),
+                            orientation = Orientation.Horizontal,
+                            messageRes = R.string.msg_loading_more_devs
+                        )
+                    }
+                }
+                append is LoadState.Error -> {
+                    val appendError = append as LoadState.Error
+                    Timber.d("DevsListContent: Append Error : $appendError")
+                    val errorEntity =
+                        appendError.error as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
+                    item(contentType = ITEM_LOAD_STATE) {
+                        RestErrorEntityView(
+                            modifier = Modifier.fillMaxWidth(),
+                            errorEntity = errorEntity,
+                            onRetry = { devs.retry() }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestErrorEntityView(
+    modifier: Modifier,
+    errorEntity: ErrorEntity.Rest,
+    onRetry: () -> Unit
+) {
+    @StringRes var errorTitle = 0
+    @StringRes var errorMessage = R.string.msg_unknown_connection_error
+    @DrawableRes var errorIcon = R.drawable.img_err_api_call
+
+    when (errorEntity) {
+        is ErrorEntity.Rest.Http -> {
+            if (errorEntity.isServerError) {
+                errorMessage = R.string.msg_server_error
+                errorIcon = R.drawable.img_server_error
+            }
+        }
+        is ErrorEntity.Rest.Network -> {
+            errorTitle = R.string.lbl_no_internet
+            errorMessage = R.string.msg_no_internet
+            errorIcon = R.drawable.img_no_internet
+        }
+        else -> Unit
+    }
+
+    ErrorView(
+        modifier = modifier,
+        errorTitleRes = errorTitle,
+        errorMessageRes = errorMessage,
+        errorIcon = errorIcon,
+        onRetry = onRetry
+    )
+}
+
+private const val ITEM_LOAD_STATE = "LoadStateItem"
