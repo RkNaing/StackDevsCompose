@@ -14,7 +14,7 @@ class DevsListPagingDataSource(
     override fun getRefreshKey(state: PagingState<Int, Dev>): Int? = state.anchorPosition
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Dev> {
-        val currentPage = params.key ?: 1
+        val currentPage = params.key?.takeIf { it > 0 } ?: 1
         Timber.d("load: Loading Page : $currentPage")
         return when (val resource = devsRepository.getDevsList(currentPage, params.loadSize)) {
             is Resource.Success -> {

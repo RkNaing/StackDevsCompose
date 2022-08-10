@@ -6,7 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -16,6 +17,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.rahulkumar.stackdevs.R
 import com.rahulkumar.stackdevs.data.models.Dev
 import com.rahulkumar.stackdevs.ui.theme.StackDevsTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @Composable
 fun DevsListScreen(viewModel: DevsListViewModel = hiltViewModel()) {
@@ -31,10 +34,8 @@ fun DevsListScreen(viewModel: DevsListViewModel = hiltViewModel()) {
                     .padding(padding),
                 color = MaterialTheme.colors.background
             ) {
-
                 val devs: LazyPagingItems<Dev> = viewModel.devs.collectAsLazyPagingItems()
                 DevsListContent(devs = devs, modifier = Modifier.fillMaxSize())
-
             }
         }
     }

@@ -21,7 +21,8 @@ class DevsListViewModel @Inject constructor(private val devsRepo: DevsRepository
             enablePlaceholders = false,
             maxSize = 70
         ),
-        pagingSourceFactory = { DevsListPagingDataSource(devsRepo) }
+        pagingSourceFactory = { DevsListPagingDataSource(devsRepo) },
+        initialKey = 1
     ).flow.cachedIn(viewModelScope)
 
 }

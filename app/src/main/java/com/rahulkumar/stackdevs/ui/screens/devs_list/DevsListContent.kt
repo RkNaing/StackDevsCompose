@@ -17,6 +17,8 @@ import androidx.core.net.toUri
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.items
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.rahulkumar.stackdevs.R
 import com.rahulkumar.stackdevs.data.models.Dev
 import com.rahulkumar.stackdevs.data.resource.ErrorEntity
@@ -29,61 +31,24 @@ import timber.log.Timber
 fun DevsListContent(modifier: Modifier = Modifier, devs: LazyPagingItems<Dev>) {
 
     val context = LocalContext.current
+    val isRefreshing = rememberSwipeRefreshState(
+        isRefreshing = devs.loadState.refresh is LoadState.Loading
+    )
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    SwipeRefresh(
+        modifier = Modifier.fillMaxSize(),
+        state = isRefreshing,
+        onRefresh = devs::refresh
     ) {
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
 
-        when (val prepend = devs.loadState.prepend) {
-            is LoadState.Loading -> {
-                Timber.d("DevsListContent: Prepend Loading")
-                item(contentType = ITEM_LOAD_STATE) {
-                    SimpleLoadingView(
-                        Modifier.fillMaxWidth(),
-                        orientation = Orientation.Horizontal,
-                        messageRes = R.string.msg_loading_more_devs
-                    )
-                }
-            }
-            is LoadState.Error -> {
-                val prependError = prepend.error
-                val errorEntity = prependError as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
-                Timber.d("DevsListContent: Prepend Error : $prependError")
-                item(contentType = ITEM_LOAD_STATE) {
-                    RestErrorEntityView(
-                        modifier = Modifier.fillMaxWidth(),
-                        errorEntity = errorEntity,
-                        onRetry = { devs.retry() }
-                    )
-                }
-            }
-            else -> Unit
-        }
-
-        items(items = devs, key = { dev -> dev.accountId }) { dev ->
-            dev?.let {
-                ItemDeveloper(
-                    dev = dev,
-                    onClickProfileBtn = { profileLink ->
-                        profileLink?.toUri().let { profileUri ->
-                            context.getActivity()
-                                ?.startActivity(Intent(Intent.ACTION_VIEW, profileUri))
-                        }
-                    },
-                    onClickPortfolioBtn = { portfolioLink ->
-                        portfolioLink?.toUri().let { portfolioUri ->
-                            context.getActivity()
-                                ?.startActivity(Intent(Intent.ACTION_VIEW, portfolioUri))
-                        }
-                    })
-            }
-        }
-
-        with(devs.loadState) {
-            when {
-                refresh is LoadState.Loading -> {
+            // Refresh State
+            val showContent = when (val refreshState = devs.loadState.refresh) {
+                LoadState.Loading -> {
                     Timber.d("DevsListContent: Refresh Loading")
                     item(contentType = ITEM_LOAD_STATE) {
                         SimpleLoadingView(
@@ -91,21 +56,78 @@ fun DevsListContent(modifier: Modifier = Modifier, devs: LazyPagingItems<Dev>) {
                             orientation = Orientation.Vertical
                         )
                     }
+                    false
                 }
-                refresh is LoadState.Error -> {
-                    val refreshError = refresh as LoadState.Error
-                    Timber.d("DevsListContent: Refresh Error : $refreshError")
+                is LoadState.Error -> {
+                    Timber.d("DevsListContent: Refresh Error : $refreshState")
                     val errorEntity =
-                        refreshError.error as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
+                        refreshState.error as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
                     item(contentType = ITEM_LOAD_STATE) {
                         RestErrorEntityView(
-                            modifier = Modifier.fillParentMaxSize(),
+                            modifier = if (devs.itemCount == 0) Modifier.fillParentMaxSize() else Modifier.fillMaxWidth(),
+                            errorEntity = errorEntity,
+                            onRetry = { devs.retry() }
+                        )
+                    }
+                    false
+                }
+                is LoadState.NotLoading -> true
+            }
+
+            if (!showContent) {
+                Timber.d("DevsListContent: Skip displaying list contents.")
+                return@LazyColumn
+            }
+
+            // Handling Prepend State
+            when (val prependState = devs.loadState.prepend) {
+                is LoadState.Loading -> {
+                    Timber.d("DevsListContent: Prepend Loading")
+                    item(contentType = ITEM_LOAD_STATE) {
+                        SimpleLoadingView(
+                            Modifier.fillMaxWidth(),
+                            orientation = Orientation.Horizontal,
+                            messageRes = R.string.msg_loading_more_devs
+                        )
+                    }
+                }
+                is LoadState.Error -> {
+                    val prependError = prependState.error
+                    val errorEntity = prependError as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
+                    Timber.d("DevsListContent: Prepend Error : $prependError")
+                    item(contentType = ITEM_LOAD_STATE) {
+                        RestErrorEntityView(
+                            modifier = Modifier.fillMaxWidth(),
                             errorEntity = errorEntity,
                             onRetry = { devs.retry() }
                         )
                     }
                 }
-                append is LoadState.Loading -> {
+                else -> Timber.d("DevsListContent: Prepend is Idle. Not Loading!")
+            }
+
+            items(items = devs, key = { dev -> dev.accountId }) { dev ->
+                dev?.let {
+                    ItemDeveloper(
+                        dev = dev,
+                        onClickProfileBtn = { profileLink ->
+                            profileLink?.toUri().let { profileUri ->
+                                context.getActivity()
+                                    ?.startActivity(Intent(Intent.ACTION_VIEW, profileUri))
+                            }
+                        },
+                        onClickPortfolioBtn = { portfolioLink ->
+                            portfolioLink?.toUri().let { portfolioUri ->
+                                context.getActivity()
+                                    ?.startActivity(Intent(Intent.ACTION_VIEW, portfolioUri))
+                            }
+                        })
+                }
+            }
+
+            // Handling Append State
+            when (val appendState = devs.loadState.append) {
+                LoadState.Loading -> {
                     Timber.d("DevsListContent: Append Loading")
                     item(contentType = ITEM_LOAD_STATE) {
                         SimpleLoadingView(
@@ -115,11 +137,10 @@ fun DevsListContent(modifier: Modifier = Modifier, devs: LazyPagingItems<Dev>) {
                         )
                     }
                 }
-                append is LoadState.Error -> {
-                    val appendError = append as LoadState.Error
-                    Timber.d("DevsListContent: Append Error : $appendError")
+                is LoadState.Error -> {
+                    Timber.d("DevsListContent: Append Error $appendState")
                     val errorEntity =
-                        appendError.error as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
+                        appendState.error as? ErrorEntity.Rest ?: ErrorEntity.Rest.Unknown
                     item(contentType = ITEM_LOAD_STATE) {
                         RestErrorEntityView(
                             modifier = Modifier.fillMaxWidth(),
@@ -127,10 +148,15 @@ fun DevsListContent(modifier: Modifier = Modifier, devs: LazyPagingItems<Dev>) {
                             onRetry = { devs.retry() }
                         )
                     }
+
                 }
+                is LoadState.NotLoading -> Timber.d("DevsListContent: Append state is Idle. Not Loading.")
             }
+
         }
     }
+
+
 }
 
 @Composable
