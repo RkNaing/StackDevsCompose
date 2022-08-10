@@ -10,4 +10,8 @@ A simple android application that lists users from [StackExchange](https://api.s
 
 ##Screenshot
 
-![Devs List](art/screenshot.png)
+![Devs List](assets/art/screenshot.png)
+
+##APK
+
+[Download](assets/APKs/stack_devs_debug.apk) Debug APK
